@@ -6,20 +6,20 @@ use std::str::FromStr;
 use crate::Error;
 
 #[derive(Debug, PartialEq)]
-struct ChunkType {
+pub struct ChunkType {
     data: u32,
 }
 
 impl ChunkType {
-    fn bytes(&self) -> [u8; 4] {
+    pub fn bytes(&self) -> [u8; 4] {
         self.data.to_be_bytes()
     }
 
-    fn is_valid(&self) -> bool {
+    pub fn is_valid(&self) -> bool {
         self.is_reserved_bit_valid()
     }
 
-    fn is_critical(&self) -> bool {
+    pub fn is_critical(&self) -> bool {
         //let mask: [u8; 4] = [0b00010000, 0, 0, 0]; // this also works
         //let mask = [32, 0, 0, 0];
         //let mask = u32::from_be_bytes(mask);
@@ -27,21 +27,21 @@ impl ChunkType {
         u8::is_ascii_uppercase(&self.data.to_be_bytes()[0])
     }
 
-    fn is_public(&self) -> bool {
+    pub fn is_public(&self) -> bool {
         //let mask = [0, 32, 0, 0];
         //let mask = u32::from_be_bytes(mask);
         //self.data & mask != mask
         u8::is_ascii_uppercase(&self.data.to_be_bytes()[1])
     }
 
-    fn is_reserved_bit_valid(&self) -> bool {
+    pub fn is_reserved_bit_valid(&self) -> bool {
         //let mask = [0, 0, 32, 0];
         //let mask = u32::from_be_bytes(mask);
         //self.data & mask != mask
         u8::is_ascii_uppercase(&self.data.to_be_bytes()[2])
     }
 
-    fn is_safe_to_copy(&self) -> bool {
+    pub fn is_safe_to_copy(&self) -> bool {
         //let mask = [0, 0, 0, 32];
         //let mask = u32::from_be_bytes(mask);
         //self.data & mask == mask
