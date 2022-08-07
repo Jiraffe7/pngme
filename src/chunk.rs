@@ -1,51 +1,51 @@
 use crc::Crc;
-use std::{
-    fmt::Display,
-    io::{BufReader, Read},
-};
+use std::{fmt::Display, io::Read};
 
 use crate::{chunk_type::ChunkType, Error, Result};
 
 const CRC_32: Crc<u32> = Crc::<u32>::new(&crc::CRC_32_ISO_HDLC);
 
-struct Chunk {
+pub struct Chunk {
     chunk_type: ChunkType,
     data: Vec<u8>,
 }
 
 impl Chunk {
-    fn new(chunk_type: ChunkType, data: Vec<u8>) -> Chunk {
+    pub fn new(chunk_type: ChunkType, data: Vec<u8>) -> Chunk {
         Chunk { chunk_type, data }
     }
 
-    fn length(&self) -> u32 {
+    pub fn length(&self) -> u32 {
         self.data.len().try_into().unwrap()
     }
 
-    fn chunk_type(&self) -> &ChunkType {
+    pub fn chunk_type(&self) -> &ChunkType {
         &self.chunk_type
     }
 
-    fn data(&self) -> &[u8] {
+    pub fn data(&self) -> &[u8] {
         &self.data
     }
 
-    fn crc(&self) -> u32 {
+    pub fn crc(&self) -> u32 {
         let mut bytes = Vec::with_capacity(4 + self.data.len());
         bytes.extend(&self.chunk_type.bytes());
         bytes.extend(&self.data);
         CRC_32.checksum(&bytes)
     }
 
-    fn data_as_string(&self) -> Result<String> {
+    pub fn data_as_string(&self) -> Result<String> {
         Ok(String::from_utf8(self.data.clone())?)
     }
 
-    fn as_bytes(&self) -> Vec<u8> {
-        self.chunk_type
-            .bytes()
+    pub fn as_bytes(&self) -> Vec<u8> {
+        let length: u32 = self.data.len().try_into().unwrap();
+        length
+            .to_be_bytes()
             .iter()
+            .chain(self.chunk_type().bytes().iter())
             .chain(self.data.iter())
+            .chain(self.crc().to_be_bytes().iter())
             .copied()
             .collect()
     }
@@ -54,27 +54,31 @@ impl Chunk {
 impl TryFrom<&[u8]> for Chunk {
     type Error = Error;
 
-    fn try_from(value: &[u8]) -> Result<Self> {
-        let mut reader = BufReader::new(value);
+    fn try_from(mut value: &[u8]) -> Result<Self> {
+        // hint suggests the use of a BufReader
+        // but since values are already in memory, there's no benefit to buffering.
+        //let mut reader = BufReader::new(value);
         let mut buf: [u8; 4] = [0; 4];
 
         // read length
-        reader.read_exact(&mut buf)?;
+        value.read_exact(&mut buf)?;
         let length = u32::from_be_bytes(buf);
 
         // read chunk type
-        reader.read_exact(&mut buf)?;
+        value.read_exact(&mut buf)?;
         let chunk_type = ChunkType::try_from(buf)?;
 
         // read data
-        let mut data = Vec::with_capacity(length as usize);
-        reader.by_ref().take(length as u64).read_to_end(&mut data)?;
+        //let mut data = Vec::with_capacity(length as usize);
+        //value.by_ref().take(length as u64).read_to_end(&mut data)?;
+        let mut data = vec![0; length as usize];
+        value.read_exact(&mut data)?;
         if data.len() != length as usize {
             return Err("data length does not match".into());
         }
 
         // read crc
-        reader.read_exact(&mut buf)?;
+        value.read_exact(&mut buf)?;
         let crc = u32::from_be_bytes(buf);
 
         // validate crc
@@ -185,6 +189,7 @@ mod tests {
         assert_eq!(chunk.chunk_type().to_string(), String::from("RuSt"));
         assert_eq!(chunk_string, expected_chunk_string);
         assert_eq!(chunk.crc(), 2882656334);
+        assert_eq!(chunk.as_bytes(), chunk_data);
     }
 
     #[test]
